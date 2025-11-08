@@ -1,16 +1,23 @@
 [
   {
+    "name": "BSC Mainnet",
+    "endpoint": "https://bsc-mainnet.public.blastapi.io",
+    "chainId": 56,
+    "symbol": "BNB",
+    "explorer": "https://bscscan.com"
+  },
+    {
     "name": "Ethereum Mainnet",
     "rpcUrl": "https://mainnet.infura.io/v3",
     "chainId": "1",
     "symbol": "ETH",
     "explorer": "https://etherscan.io"
   },
-  {
-    "name": "BSC Mainnet",
-    "endpoint": "https://bsc-mainnet.public.blastapi.io",
-    "chainId": 56,
-    "symbol": "BNB",
-    "explorer": "https://bscscan.com"
+    {
+    "name": "Apechain",
+    "rpcUrl": "https://apechain.calderachain.xyz/http",
+    "chainId": "33139",
+    "symbol": "APE",
+    "explorer": "https://apechain.calderaexplorer.xyz/"
   }
 ]
