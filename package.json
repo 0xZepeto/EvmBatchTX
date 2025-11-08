@@ -1,0 +1,21 @@
+{
+  "name": "multi-chain-token-sender",
+  "version": "1.0.0",
+  "description": "Multi-chain token sender with support for BEP20/ERC20 and native tokens",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "ethers": "^6.15.0",
+    "inquirer": "^8.2.6",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.3.1",
+    "ora": "^5.4.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
