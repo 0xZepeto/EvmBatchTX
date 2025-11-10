@@ -15,6 +15,18 @@ const privateKeyList = fs.readFileSync('pk.txt', 'utf-8')
   .map(pk => pk.trim())
   .filter(pk => pk !== '');
 
+// Baca file alamat penerima
+let addressList = [];
+try {
+  addressList = fs.readFileSync('address.txt', 'utf-8')
+    .split('\n')
+    .map(addr => addr.trim())
+    .filter(addr => addr !== '' && ethers.isAddress(addr));
+  console.log(chalk.green(`Ditemukan ${addressList.length} alamat penerima di address.txt`));
+} catch (error) {
+  console.log(chalk.yellow('File address.txt tidak ditemukan atau kosong'));
+}
+
 // Fungsi untuk menampilkan pesan dengan warna dan ukuran huruf
 const log = {
   header: (msg) => console.log(chalk.bold.black.bgYellow(`\n ${msg} \n`)),
@@ -148,11 +160,11 @@ async function main() {
     // Pilih jaringan tanpa simbol
     const { network } = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'rawlist',
         name: 'network',
         message: chalk.bold.white('PILIH JARINGAN:'),
-        choices: rpcConfig.map(net => ({
-          name: `${net.name} (Chain ID: ${net.chainId})`,
+        choices: rpcConfig.map((net, index) => ({
+          name: `${index + 1}. ${chalk.blue('🌐')} ${net.name} (Chain ID: ${net.chainId})`,
           value: net
         }))
       }
@@ -169,12 +181,12 @@ async function main() {
     // Pilih opsi utama
     const { mainOption } = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'rawlist',
         name: 'mainOption',
         message: chalk.bold.white('PILIH MODE:'),
         choices: [
-          { name: chalk.green('KIRIM TOKEN (BEP20/ERC20)'), value: 'token' },
-          { name: chalk.yellow('KIRIM NATIVE TOKEN'), value: 'native' }
+          { name: '1. 💰 KIRIM TOKEN (BEP20/ERC20)', value: 'token' },
+          { name: '2. 💰 KIRIM NATIVE TOKEN', value: 'native' }
         ]
       }
     ]);
@@ -183,12 +195,12 @@ async function main() {
       // Pilih sub opsi token
       const { tokenOption } = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'rawlist',
           name: 'tokenOption',
           message: chalk.bold.white('PILIH MODE PENGIRIMAN TOKEN:'),
           choices: [
-            { name: chalk.blue('SATU ADDRESS -> BANYAK ADDRESS'), value: 'multi' },
-            { name: chalk.magenta('BANYAK ADDRESS -> SATU ADDRESS'), value: 'single' }
+            { name: '1. 📤 SATU ADDRESS → BANYAK ADDRESS', value: 'multi' },
+            { name: '2. 📥 BANYAK ADDRESS → SATU ADDRESS', value: 'single' }
           ]
         }
       ]);
@@ -217,14 +229,15 @@ async function main() {
 
       if (tokenOption === 'multi') {
         // Kirim token ke banyak address
-        console.log(chalk.cyan('Mode: Satu Address -> Banyak Address'));
+        console.log(chalk.cyan('Mode: Satu Address → Banyak Address'));
         
         const { senderPk } = await inquirer.prompt([
           {
-            type: 'input',
+            type: 'password',
             name: 'senderPk',
-            message: chalk.bold.white('MASUKKAN PRIVATE KEY PENGIRIM:'),
-            default: process.env.PRIVATE_KEY || ''
+            message: chalk.bold.white('MASUKKAN PRIVATE KEY PENGIRIM (atau tekan enter untuk .env):'),
+            default: process.env.PRIVATE_KEY || '',
+            mask: '*'
           }
         ]);
 
@@ -233,34 +246,46 @@ async function main() {
         
         console.log(chalk.white(`Pengirim: ${senderAddress}`));
 
-        // Input recipients
-        const { recipientsInput } = await inquirer.prompt([
-          {
-            type: 'input',
-            name: 'recipientsInput',
-            message: chalk.bold.white('MASUKKAN ALAMAT PENERIMA (pisahkan dengan koma):'),
-            validate: input => {
-              const addresses = input.split(',').map(addr => addr.trim());
-              return addresses.every(addr => ethers.isAddress(addr)) || 'Ada alamat tidak valid!';
-            }
-          }
-        ]);
-
-        const recipients = recipientsInput.split(',').map(addr => addr.trim());
+        // Gunakan alamat dari file address.txt
+        if (addressList.length === 0) {
+          throw new Error('Tidak ada alamat penerima yang valid di address.txt');
+        }
+        
+        const recipients = addressList;
         console.log(chalk.white(`Jumlah Penerima: ${recipients.length}`));
         
         // Input amount
-        const { amountPerRecipient } = await inquirer.prompt([
+        const { amountOption } = await inquirer.prompt([
           {
-            type: 'input',
-            name: 'amountPerRecipient',
-            message: chalk.bold.white(`MASUKKAN JUMLAH ${tokenSymbol} PER PENERIMA:`),
-            validate: input => !isNaN(input) && parseFloat(input) > 0 || 'Jumlah tidak valid!'
+            type: 'rawlist',
+            name: 'amountOption',
+            message: chalk.bold.white('PILIH JUMLAH:'),
+            choices: [
+              { name: '1. 🔄 Kirim Semua Saldo', value: 'all' },
+              { name: '2. 💰 Tentukan nominal', value: 'fixed' }
+            ]
           }
         ]);
 
-        const amountPerRecipientWei = ethers.parseUnits(amountPerRecipient, tokenDecimals);
-        const totalAmount = amountPerRecipientWei * ethers.toBigInt(recipients.length);
+        let amountPerRecipient;
+        if (amountOption === 'fixed') {
+          const { amountInput } = await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'amountInput',
+              message: chalk.bold.white(`MASUKKAN JUMLAH ${tokenSymbol} PER PENERIMA:`),
+              validate: input => !isNaN(input) && parseFloat(input) > 0 || 'Jumlah tidak valid!'
+            }
+          ]);
+          amountPerRecipient = ethers.parseUnits(amountInput, tokenDecimals);
+        } else {
+          // Hitung saldo per penerima
+          const balance = await tokenContract.balanceOf(senderAddress);
+          amountPerRecipient = balance / ethers.toBigInt(recipients.length);
+          console.log(chalk.white(`Saldo per penerima: ${ethers.formatUnits(amountPerRecipient, tokenDecimals)} ${tokenSymbol}`));
+        }
+
+        const totalAmount = amountPerRecipient * ethers.toBigInt(recipients.length);
 
         // Cek saldo
         const balance = await tokenContract.balanceOf(senderAddress);
@@ -274,7 +299,7 @@ async function main() {
           transactions.push({
             from: senderAddress,
             to: recipient,
-            amount: amountPerRecipientWei,
+            amount: amountPerRecipient,
             symbol: tokenSymbol,
             decimals: tokenDecimals,
             gasLimit: 100000,
@@ -307,7 +332,7 @@ async function main() {
         }
       } else {
         // Kirim token ke satu address dari banyak wallet
-        console.log(chalk.cyan('Mode: Banyak Address -> Satu Address'));
+        console.log(chalk.cyan('Mode: Banyak Address → Satu Address'));
         
         const { recipientAddress } = await inquirer.prompt([
           {
@@ -322,12 +347,12 @@ async function main() {
 
         const { amountOption } = await inquirer.prompt([
           {
-            type: 'list',
+            type: 'rawlist',
             name: 'amountOption',
             message: chalk.bold.white('PILIH JUMLAH:'),
             choices: [
-              { name: chalk.cyan('KIRIM JUMLAH TETAP PER WALLET'), value: 'fixed' },
-              { name: chalk.red('KIRIM SEMUA SALDO TOKEN'), value: 'all' }
+              { name: '1. 🔄 Kirim Semua Saldo', value: 'all' },
+              { name: '2. 💰 Tentukan nominal', value: 'fixed' }
             ]
           }
         ]);
@@ -432,26 +457,27 @@ async function main() {
       // Opsi native token
       const { nativeOption } = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'rawlist',
           name: 'nativeOption',
           message: chalk.bold.white('PILIH MODE PENGIRIMAN NATIVE TOKEN:'),
           choices: [
-            { name: chalk.blue('SATU ADDRESS -> BANYAK ADDRESS'), value: 'multi' },
-            { name: chalk.magenta('BANYAK ADDRESS -> SATU ADDRESS'), value: 'single' }
+            { name: '1. 📤 SATU ADDRESS → BANYAK ADDRESS', value: 'multi' },
+            { name: '2. 📥 BANYAK ADDRESS → SATU ADDRESS', value: 'single' }
           ]
         }
       ]);
 
       if (nativeOption === 'multi') {
         // Kirim native token ke banyak address
-        console.log(chalk.cyan('Mode: Satu Address -> Banyak Address'));
+        console.log(chalk.cyan('Mode: Satu Address → Banyak Address'));
         
         const { senderPk } = await inquirer.prompt([
           {
-            type: 'input',
+            type: 'password',
             name: 'senderPk',
-            message: chalk.bold.white('MASUKKAN PRIVATE KEY PENGIRIM:'),
-            default: process.env.PRIVATE_KEY || ''
+            message: chalk.bold.white('MASUKKAN PRIVATE KEY PENGIRIM (atau tekan enter untuk .env):'),
+            default: process.env.PRIVATE_KEY || '',
+            mask: '*'
           }
         ]);
 
@@ -460,34 +486,46 @@ async function main() {
         
         console.log(chalk.white(`Pengirim: ${senderAddress}`));
 
-        // Input recipients
-        const { recipientsInput } = await inquirer.prompt([
-          {
-            type: 'input',
-            name: 'recipientsInput',
-            message: chalk.bold.white('MASUKKAN ALAMAT PENERIMA (pisahkan dengan koma):'),
-            validate: input => {
-              const addresses = input.split(',').map(addr => addr.trim());
-              return addresses.every(addr => ethers.isAddress(addr)) || 'Ada alamat tidak valid!';
-            }
-          }
-        ]);
-
-        const recipients = recipientsInput.split(',').map(addr => addr.trim());
+        // Gunakan alamat dari file address.txt
+        if (addressList.length === 0) {
+          throw new Error('Tidak ada alamat penerima yang valid di address.txt');
+        }
+        
+        const recipients = addressList;
         console.log(chalk.white(`Jumlah Penerima: ${recipients.length}`));
         
         // Input amount
-        const { amountPerRecipient } = await inquirer.prompt([
+        const { amountOption } = await inquirer.prompt([
           {
-            type: 'input',
-            name: 'amountPerRecipient',
-            message: chalk.bold.white(`MASUKKAN JUMLAH ${symbol} PER PENERIMA:`),
-            validate: input => !isNaN(input) && parseFloat(input) > 0 || 'Jumlah tidak valid!'
+            type: 'rawlist',
+            name: 'amountOption',
+            message: chalk.bold.white('PILIH JUMLAH:'),
+            choices: [
+              { name: '1. 🔄 Kirim Semua Saldo', value: 'all' },
+              { name: '2. 💰 Tentukan nominal', value: 'fixed' }
+            ]
           }
         ]);
 
-        const amountPerRecipientWei = ethers.parseEther(amountPerRecipient);
-        const totalAmount = amountPerRecipientWei * ethers.toBigInt(recipients.length);
+        let amountPerRecipient;
+        if (amountOption === 'fixed') {
+          const { amountInput } = await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'amountInput',
+              message: chalk.bold.white(`MASUKKAN JUMLAH ${symbol} PER PENERIMA:`),
+              validate: input => !isNaN(input) && parseFloat(input) > 0 || 'Jumlah tidak valid!'
+            }
+          ]);
+          amountPerRecipient = ethers.parseEther(amountInput);
+        } else {
+          // Hitung saldo per penerima
+          const balance = await provider.getBalance(senderAddress);
+          amountPerRecipient = balance / ethers.toBigInt(recipients.length);
+          console.log(chalk.white(`Saldo per penerima: ${ethers.formatEther(amountPerRecipient)} ${symbol}`));
+        }
+
+        const totalAmount = amountPerRecipient * ethers.toBigInt(recipients.length);
 
         // Cek saldo
         const balance = await provider.getBalance(senderAddress);
@@ -501,7 +539,7 @@ async function main() {
           transactions.push({
             from: senderAddress,
             to: recipient,
-            amount: amountPerRecipientWei,
+            amount: amountPerRecipient,
             symbol: symbol,
             decimals: 18,
             gasLimit: 21000,
@@ -534,7 +572,7 @@ async function main() {
         }
       } else {
         // Kirim native token ke satu address dari banyak wallet
-        console.log(chalk.cyan('Mode: Banyak Address -> Satu Address'));
+        console.log(chalk.cyan('Mode: Banyak Address → Satu Address'));
         
         const { recipientAddress } = await inquirer.prompt([
           {
@@ -549,12 +587,12 @@ async function main() {
 
         const { amountOption } = await inquirer.prompt([
           {
-            type: 'list',
+            type: 'rawlist',
             name: 'amountOption',
             message: chalk.bold.white('PILIH JUMLAH:'),
             choices: [
-              { name: chalk.cyan('KIRIM JUMLAH TETAP PER WALLET'), value: 'fixed' },
-              { name: chalk.red('KIRIM SEMUA SALDO'), value: 'all' }
+              { name: '1. 🔄 Kirim Semua Saldo', value: 'all' },
+              { name: '2. 💰 Tentukan nominal', value: 'fixed' }
             ]
           }
         ]);
