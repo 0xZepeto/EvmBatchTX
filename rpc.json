@@ -1,23 +1,37 @@
 [
   {
+    "name": "Ethereum Mainnet",
+    "rpcUrls": ["https://mainnet.infura.io/v3/YOUR_PROJECT_ID"],
+    "chainId": 1,
+    "symbol": "ETH",
+    "explorer": "https://etherscan.io"
+  },
+  {
     "name": "BSC Mainnet",
-    "endpoint": "https://bsc-mainnet.public.blastapi.io",
+    "rpcUrls": ["https://bsc-mainnet.public.blastapi.io"],
     "chainId": 56,
     "symbol": "BNB",
     "explorer": "https://bscscan.com"
   },
-    {
-    "name": "Ethereum Mainnet",
-    "rpcUrl": "https://mainnet.infura.io/v3",
-    "chainId": "1",
+  {
+    "name": "ETH Base",
+    "rpcUrls": ["https://base.drpc.org"],
+    "chainId": 8453,
     "symbol": "ETH",
-    "explorer": "https://etherscan.io"
+    "explorer": "https://base.blockscout.com/"
   },
-    {
-    "name": "Apechain",
-    "rpcUrl": "https://apechain.calderachain.xyz/http",
-    "chainId": "33139",
+  {
+    "name": "ApeChain Mainnet",
+    "rpcUrls": ["https://apechain.calderachain.xyz/http"],
+    "chainId": 33139,
     "symbol": "APE",
     "explorer": "https://apechain.calderaexplorer.xyz/"
+  },
+  {
+    "name": "TEA MAINNET",
+    "rpcUrls": ["https://tea.com"],
+    "chainId": 0,
+    "symbol": "TEA",
+    "explorer": "https://tea.com"
   }
 ]
