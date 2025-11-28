@@ -29,9 +29,9 @@
   },
   {
     "name": "TEA MAINNET",
-    "rpcUrls": ["https://tea.com"],
+    "rpcUrls": ["https://tea"],
     "chainId": 0,
     "symbol": "TEA",
-    "explorer": "https://tea.com"
+    "explorer": ""
   }
 ]
